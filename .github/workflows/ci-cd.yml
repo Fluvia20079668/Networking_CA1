@@ -1,19 +1,26 @@
-name: Deploy to AWS EKS
+name: Deploy to AWS EKS (Multi-Arch)
 
 on:
   push:
     branches: [ main ]
 
 env:
-  IMAGE_REPO: my-simple-app   # updated
+  IMAGE_REPO: my-simple-app
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # Step 1 — Checkout your source code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2 — Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 3 — Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -21,29 +28,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # Step 4 — Login to Amazon ECR
       - name: Log in to Amazon ECR
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
           docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-      - name: Build Docker image
+      # Step 5 — Build and push multi-arch Docker image
+      - name: Build and push Docker image (multi-arch)
         run: |
           IMAGE_TAG=${{ github.sha }}
-          docker build -t ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG .
-          docker tag ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:latest
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG \
+            -t ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:latest \
+            --push .
 
-      - name: Push Docker image to ECR
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker push ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG
-          docker push ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:latest
-
+      # Step 6 — Update kubeconfig for EKS cluster
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --region ${{ secrets.AWS_REGION }}
 
+      # Step 7 — Deploy new image to EKS
       - name: Deploy to EKS
         run: |
           IMAGE_TAG=${{ github.sha }}
-          kubectl set image deployment/my-simple-app my-simple-app=${{ secrets.ECR_REGISTRY }}/my-simple-app:$IMAGE_TAG --record
+          kubectl set image deployment/my-simple-app \
+            my-simple-app=${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG --record
           kubectl rollout status deployment/my-simple-app

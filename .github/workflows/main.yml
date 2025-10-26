@@ -49,18 +49,9 @@ jobs:
         run: |
           aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
 
-     # Step 7 — Deploy new image to EKS
+      # Step 7 — Deploy new image to EKS
       - name: Deploy to EKS
         run: |
-          IMAGE_TAG=${{ github.sha }}
-          kubectl set image deployment/my-simple-app my-simple-app=${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG --record
-          kubectl rollout status deployment/my-simple-app
-
-
-
-
-
-        
           IMAGE_TAG=${{ github.sha }}
           kubectl set image deployment/my-simple-app my-simple-app=${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG --record
           kubectl rollout status deployment/my-simple-app

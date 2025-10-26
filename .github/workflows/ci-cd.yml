@@ -34,15 +34,20 @@ jobs:
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
           docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-      # Step 5 — Build and push multi-arch Docker image
+         # Step 5 — Build and push multi-arch Docker image
       - name: Build and push Docker image (multi-arch)
         run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
           IMAGE_TAG=${{ github.sha }}
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             -t ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG \
             -t ${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:latest \
             --push .
+
+
 
       # Step 6 — Update kubeconfig for EKS cluster
       - name: Update kubeconfig

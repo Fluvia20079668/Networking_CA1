@@ -1,10 +1,12 @@
-name: Deploy to AWS EKS (Multi-Arch)
+name: Build and Deploy to ECR
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 env:
+  AWS_REGION: eu-north-1
   IMAGE_REPO: my-simple-app
 
 jobs:
@@ -12,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 — Checkout your source code
-      - name: Checkout code
+      # Step 1 — Checkout the repo
+      - name: Checkout source code
         uses: actions/checkout@v4
 
       # Step 2 — Set up Docker Buildx
@@ -26,13 +28,13 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # Step 4 — Login to Amazon ECR
-      - name: Log in to Amazon ECR
+      # Step 4 — Log in to Amazon ECR
+      - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-          docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin $(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
 
       # Step 5 — Build and push multi-arch Docker image
       - name: Build and push Docker image (multi-arch)
@@ -40,27 +42,22 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "Files in current directory:"
           ls -la
+
           IMAGE_TAG=${{ github.sha }}
-          # Strip newlines/whitespace from ECR registry secret
+
+          # Clean and assign registry
           ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
+
           IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:$IMAGE_TAG"
           LATEST_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:latest"
+
           echo "Building image: $IMAGE_NAME"
-          docker buildx build --platform linux/amd64,linux/arm64 -t "$IMAGE_NAME" -t "$LATEST_NAME" --push .
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t "$IMAGE_NAME" \
+            -t "$LATEST_NAME" \
+            --push .
 
-      # Step 6 — Update kubeconfig for EKS cluster
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --name ${{ secrets.EKS_CLUSTER_NAME }} \
-            --region ${{ secrets.AWS_REGION }}
-
-      # Step 7 — Deploy new image to EKS
-      - name: Deploy to EKS
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          ECR_REGISTRY="${{ secrets.ECR_REGISTRY }}"
-          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:$IMAGE_TAG"
-          kubectl set image deployment/my-simple-app \
-            my-simple-app="$IMAGE_NAME" --record
-          kubectl rollout status deployment/my-simple-app
+      # Optional Step 6 — Show confirmation
+      - name: Deployment complete
+        run: echo "✅ Successfully built and pushed Docker image to ECR!"

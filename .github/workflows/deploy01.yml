@@ -8,7 +8,6 @@ on:
 env:
   AWS_REGION: eu-north-1
   IMAGE_REPO: my-simple-app
-  IMAGE_TAG: latest
 
 jobs:
   build-and-deploy:
@@ -37,16 +36,18 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
           docker login --username AWS --password-stdin $(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
 
-      # 5️⃣ Build and push Docker image
+      # 5️⃣ Build and push Docker image (unique tag per commit)
       - name: Build and push Docker image
         run: |
           ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
-          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}"
+          IMAGE_TAG=${{ github.sha }}
+          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:$IMAGE_TAG"
           echo "Building image: $IMAGE_NAME"
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             -t "$IMAGE_NAME" \
             --push .
+          echo "IMAGE_URI=$IMAGE_NAME" >> $GITHUB_ENV
 
       # 6️⃣ Set up kubectl
       - name: Set up kubectl
@@ -60,11 +61,9 @@ jobs:
           aws eks update-kubeconfig --name my-eks-cluster --region ${{ env.AWS_REGION }}
           kubectl get nodes
 
-      # 8️⃣ Deploy to EKS
+      # 8️⃣ Deploy to EKS with new image
       - name: Deploy to EKS
         run: |
-          ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
-          IMAGE_URI="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}"
           echo "Updating deployment with image: $IMAGE_URI"
           kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
           echo "Waiting for rollout..."
@@ -74,7 +73,7 @@ jobs:
       - name: Verify pods
         run: kubectl get pods -o wide
 
-      # 🔟 Get service URL
+      # 🔟 Get LoadBalancer URL
       - name: Get LoadBalancer URL
         id: get-url
         run: |
@@ -82,7 +81,7 @@ jobs:
           echo "Live URL: http://$URL"
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
-      # 11️⃣ Show URL
+      # 11️⃣ Show live application link
       - name: Show live application link
         run: |
           echo "✅ Your app is live at:"

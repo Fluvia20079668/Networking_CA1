@@ -1,4 +1,4 @@
-name: Build and Deploy to ECR
+name: Build and Deploy to ECR and EKS
 
 on:
   push:
@@ -8,21 +8,22 @@ on:
 env:
   AWS_REGION: eu-north-1
   IMAGE_REPO: my-simple-app
+  IMAGE_TAG: latest
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 — Checkout the repo
+      # 1️⃣ Checkout code
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # Step 2 — Set up Docker Buildx
+      # 2️⃣ Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Step 3 — Configure AWS credentials
+      # 3️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -30,34 +31,58 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Step 4 — Log in to Amazon ECR
+      # 4️⃣ Log in to Amazon ECR
       - name: Login to Amazon ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
           docker login --username AWS --password-stdin $(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
 
-      # Step 5 — Build and push multi-arch Docker image
-      - name: Build and push Docker image (multi-arch)
+      # 5️⃣ Build and push Docker image
+      - name: Build and push Docker image
         run: |
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -la
-
-          IMAGE_TAG=${{ github.sha }}
-
-          # Clean and assign registry
           ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
-
-          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:$IMAGE_TAG"
-          LATEST_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:latest"
-
+          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}"
           echo "Building image: $IMAGE_NAME"
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             -t "$IMAGE_NAME" \
-            -t "$LATEST_NAME" \
             --push .
 
-      # Optional Step 6 — Show confirmation
-      - name: Deployment complete
-        run: echo "✅ Successfully built and pushed Docker image to ECR!"
+      # 6️⃣ Set up kubectl
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.30.0'
+
+      # 7️⃣ Deploy to EKS
+      - name: Deploy to EKS
+        run: |
+          ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}"
+          echo "Updating deployment with image: $IMAGE_URI"
+          kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
+          echo "Waiting for rollout..."
+          kubectl rollout status deployment/my-simple-app
+
+      # 8️⃣ Verify pods
+      - name: Verify pods
+        run: |
+          kubectl get pods -o wide
+
+      # 9️⃣ Get and print live service URL
+      - name: Get LoadBalancer URL
+        id: get-url
+        run: |
+          URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "Live URL: http://$URL"
+          echo "url=http://$URL" >> $GITHUB_OUTPUT
+
+      # 🔟 Print verification URL
+      - name: Show live application link
+        run: |
+          echo "✅ Your app is live at:"
+          echo "${{ steps.get-url.outputs.url }}"
+
+      # 11️⃣ Cleanup old Docker images
+      - name: Cleanup
+        run: docker image prune -af

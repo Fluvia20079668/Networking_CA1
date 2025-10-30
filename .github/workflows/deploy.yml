@@ -1,54 +1,88 @@
-name: Deploy to AWS EKS
+name: Build and Deploy to ECR and EKS
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 env:
-  IMAGE_REPO: simple-js-app
+  AWS_REGION: eu-north-1
+  IMAGE_REPO: my-simple-app
+  IMAGE_TAG: latest
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # 1️⃣ Checkout code
+      - name: Checkout source code
         uses: actions/checkout@v4
 
+      # 2️⃣ Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+      # 4️⃣ Log in to Amazon ECR
+      - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-          docker login --username AWS --password-stdin $ECR_REGISTRY
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin $(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
 
-      - name: Build and tag Docker image
-        env:
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-          IMAGE_REPO: ${{ env.IMAGE_REPO }}
-          IMAGE_TAG: ${{ github.sha }}
+      # 5️⃣ Build and push Docker image
+      - name: Build and push Docker image
         run: |
-          docker build -t $ECR_REGISTRY/$IMAGE_REPO:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$IMAGE_REPO:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_REPO:latest
+          ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
+          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}"
+          echo "Building image: $IMAGE_NAME"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t "$IMAGE_NAME" \
+            --push .
 
-      - name: Push Docker image to ECR
-        env:
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-          IMAGE_REPO: ${{ env.IMAGE_REPO }}
-          IMAGE_TAG: ${{ github.sha }}
+      # 6️⃣ Set up kubectl
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.30.0'
+
+      # 7️⃣ Deploy to EKS
+      - name: Deploy to EKS
         run: |
-          docker push $ECR_REGISTRY/$IMAGE_REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$IMAGE_REPO:latest
+          ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}"
+          echo "Updating deployment with image: $IMAGE_URI"
+          kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
+          echo "Waiting for rollout..."
+          kubectl rollout status deployment/my-simple-app
 
-      - name: Update kubeconfig
+      # 8️⃣ Verify pods
+      - name: Verify pods
         run: |
-          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+          kubectl get pods -o wide
 
-      - name
+      # 9️⃣ Get and print live service URL
+      - name: Get LoadBalancer URL
+        id: get-url
+        run: |
+          URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "Live URL: http://$URL"
+          echo "url=http://$URL" >> $GITHUB_OUTPUT
+
+      # 🔟 Print verification URL
+      - name: Show live application link
+        run: |
+          echo "✅ Your app is live at:"
+          echo "${{ steps.get-url.outputs.url }}"
+
+      # 11️⃣ Cleanup old Docker images
+      - name: Cleanup
+        run: docker image prune -af

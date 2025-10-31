@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-simple-app
+  labels:
+    app: my-simple-app
 spec:
   replicas: 2
   selector:
@@ -13,9 +15,7 @@ spec:
         app: my-simple-app
     spec:
       containers:
-      - name: my-simple-app
-        image: 32427206046.dkr.ecr.eu-north-1.amazonaws.com/my-simple-app:latest
-        ports:
-        - containerPort: 8090
-        
-
+        - name: my-simple-app
+          image: <IMAGE_URI_PLACEHOLDER>
+          ports:
+            - containerPort: 80

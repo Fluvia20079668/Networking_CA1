@@ -12,3 +12,13 @@ output "eks_cluster_name" {
 output "public_subnet_ids" {
   value = aws_subnet.public[*].id
 }
+
+# EC2 Instance ID
+output "instance_id" {
+  value = aws_instance.web.id
+}
+
+# EC2 Public IP
+output "instance_public_ip" {
+  value = aws_instance.web.public_ip
+}

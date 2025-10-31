@@ -9,13 +9,20 @@ terraform {
       version = "~> 3.5"
     }
   }
+
+  backend "s3" {
+    bucket         = var.s3_backend_bucket
+    key            = "infra/terraform.tfstate"
+    region         = var.aws_region
+    dynamodb_table = var.dynamodb_table
+    encrypt        = true
+  }
 }
 
 provider "aws" {
   region = var.aws_region
 }
 
-# Generate unique suffix for resources
 resource "random_string" "unique" {
   length  = 6
   upper   = false
@@ -24,7 +31,7 @@ resource "random_string" "unique" {
 
 # --------- VPC ---------
 resource "aws_vpc" "main" {
-  cidr_block           = "10.${random_string.unique.id}.0.0/16"
+  cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -37,9 +44,9 @@ resource "aws_vpc" "main" {
 data "aws_availability_zones" "available" {}
 
 resource "aws_subnet" "public" {
-  count                   = 2
+  count                   = var.subnet_count
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
@@ -51,16 +58,18 @@ resource "aws_subnet" "public" {
 # --------- Internet Gateway ---------
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-  tags = { Name = "igw-${random_string.unique.id}" }
+  tags   = { Name = "igw-${random_string.unique.id}" }
 }
 
 # --------- Route Table ---------
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
+
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
+
   tags = { Name = "public-rt-${random_string.unique.id}" }
 }
 
@@ -79,9 +88,7 @@ resource "aws_iam_role" "eks_cluster_role" {
     Statement = [{
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
-      Principal = {
-        Service = "eks.amazonaws.com"
-      }
+      Principal = { Service = "eks.amazonaws.com" }
     }]
   })
 }

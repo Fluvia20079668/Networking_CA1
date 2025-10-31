@@ -7,5 +7,6 @@ spec:
   selector:
     app: my-simple-app
   ports:
-    - port: 80
+   - protocol: TCP
+      port: 80
       targetPort: 8090

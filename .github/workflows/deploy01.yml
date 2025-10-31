@@ -92,3 +92,25 @@ jobs:
         run: |
           kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
           kubectl rollout status deployment/my-simple-app
+
+      - name: Create LoadBalancer service
+        run: |
+          kubectl apply -f k8s-service.yaml
+          kubectl rollout status deployment/my-simple-app
+
+      - name: Get LoadBalancer URL
+        id: get-url
+        run: |
+          echo "Waiting for LoadBalancer to be ready..."
+          for i in {1..20}; do
+            URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -n "$URL" ]; then
+              break
+            fi
+            sleep 15
+          done
+          echo "url=http://$URL" >> $GITHUB_OUTPUT
+
+      - name: Show live application link
+        run: |
+          echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"

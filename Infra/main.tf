@@ -4,86 +4,52 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
-# --- VPC + Subnets ---
-resource "aws_vpc" "main" {
-  cidr_block = var.vpc_cidr
-  tags       = { Name = "terraform-vpc" }
-}
-
-resource "aws_subnet" "public" {
-  count                   = var.subnet_count
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
-  map_public_ip_on_launch = true
-  tags = { Name = "public-subnet-${count.index}" }
-}
-
-resource "aws_internet_gateway" "gw" {
-  vpc_id = aws_vpc.main.id
-}
-
-# --- IAM roles for EKS ---
-data "aws_iam_policy_document" "eks_assume_role" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["eks.amazonaws.com"]
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
     }
   }
 }
 
+provider "aws" {
+  region = "us-east-1"
+}
+
+# Generate unique suffix for resources
+resource "random_string" "unique" {
+  length  = 6
+  upper   = false
+  special = false
+}
+
+# --------- VPC ---------
+resource "aws_vpc" "main" {
+  cidr_block           = "10.${random_string.unique.id}.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "tf-vpc-${random_string.unique.id}"
+  }
+}
+
+# --------- IAM Role ---------
 resource "aws_iam_role" "eks_cluster_role" {
-  name               = "terraform-eks-cluster-role-1"
-  assume_role_policy = data.aws_iam_policy_document.eks_assume_role.json
+  name = "terraform-eks-cluster-role-${random_string.unique.id}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = {
+        Service = "eks.amazonaws.com"
+      }
+    }]
+  })
 }
 
-resource "aws_iam_role_policy_attachment" "cluster_policy" {
-  role       = aws_iam_role.eks_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "vpc_cni_policy" {
-  role       = aws_iam_role.eks_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-# --- EKS Cluster ---
-resource "aws_eks_cluster" "eks" {
-  name     = "terraform-eks-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
-
-  vpc_config {
-    subnet_ids = aws_subnet.public[*].id
-  }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.cluster_policy,
-    aws_iam_role_policy_attachment.vpc_cni_policy
-  ]
-}
-
-# --- ECR Repo ---
+# --------- ECR Repository ---------
 resource "aws_ecr_repository" "app" {
-  name                 = "my-simple-app-1"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-# --- EC2 Instance ---
-resource "aws_instance" "web" {
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  subnet_id     = aws_subnet.public[0].id
-  tags = { Name = "web-instance" }
+  name = "my-simple-app-${random_string.unique.id}"
 }

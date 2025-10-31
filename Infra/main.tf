@@ -10,18 +10,11 @@ terraform {
     }
   }
 
-  # Backend block is empty here; config is passed during 'terraform init'
-  backend "s3" {}
+  backend "s3" {
+    bucket         = "my-terraform-state-bucket"
+    key            = "infra/terraform.tfstate"
+    region         = "us-west-2"
+    dynamodb_table = "terraform-locks"
+    encrypt        = true
+  }
 }
-
-provider "aws" {
-  region = var.aws_region
-}
-
-resource "random_string" "unique" {
-  length  = 6
-  upper   = false
-  special = false
-}
-
-# (rest of your resources: VPC, subnets, EKS, ECR, etc.)

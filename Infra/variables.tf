@@ -1,18 +1,26 @@
-# variables.tf
 variable "aws_region" {
-  description = "The AWS region to deploy resources in"
   type        = string
-  default     = "eu-north-1"  # Change to your preferred region
+  description = "AWS region to deploy resources in"
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
   type        = string
-  default     = "10.0.0.0/16"
+  description = "CIDR block for the VPC"
 }
 
 variable "subnet_count" {
-  description = "Number of public subnets"
   type        = number
+  description = "Number of public subnets"
   default     = 2
+}
+
+variable "ami_id" {
+  type        = string
+  description = "AMI ID for EC2 instance"
+}
+
+variable "instance_type" {
+  type        = string
+  description = "EC2 instance type"
+  default     = "t2.micro"
 }

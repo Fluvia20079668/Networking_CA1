@@ -1,19 +1,14 @@
-output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = aws_vpc.main.id
+# ECR Repository URL
+output "ecr_repository_url" {
+  value = aws_ecr_repository.app.repository_url
 }
 
-output "subnet_id" {
-  description = "The ID of the subnet"
-  value       = aws_subnet.main.id
+# EKS Cluster Name
+output "eks_cluster_name" {
+  value = aws_eks_cluster.eks.name
 }
 
-output "instance_id" {
-  description = "The ID of the EC2 instance"
-  value       = aws_instance.web.id
-}
-
-output "instance_public_ip" {
-  description = "Public IP of the EC2 instance"
-  value       = aws_instance.web.public_ip
+# Public Subnet IDs
+output "public_subnet_ids" {
+  value = aws_subnet.public[*].id
 }

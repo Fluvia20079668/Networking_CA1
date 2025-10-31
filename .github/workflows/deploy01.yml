@@ -27,16 +27,11 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-west-2   # Updated to match your bucket region
+          aws-region: us-west-2
 
-      - name: Terraform Init with S3 backend
+      - name: Terraform Init
         working-directory: ./Infra
-        run: |
-          terraform init -input=false \
-            -backend-config="bucket=my-terraform-state-bucket" \
-            -backend-config="key=infra/terraform.tfstate" \
-            -backend-config="region=us-west-2" \
-            -backend-config="dynamodb_table=terraform-locks"
+        run: terraform init -input=false
 
       - name: Terraform Plan
         working-directory: ./Infra
@@ -58,9 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform
     env:
-      AWS_REGION: us-west-2   # Match backend region
+      AWS_REGION: us-west-2
       IMAGE_REPO: my-simple-app
-      IMAGE_TAG: latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -106,16 +100,12 @@ jobs:
       - name: Get LoadBalancer URL
         id: get-url
         run: |
-          echo "Waiting for LoadBalancer to be ready..."
           for i in {1..20}; do
             URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-            if [ -n "$URL" ]; then
-              break
-            fi
+            if [ -n "$URL" ]; then break; fi
             sleep 15
           done
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
       - name: Show live application link
-        run: |
-          echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"
+        run: echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"

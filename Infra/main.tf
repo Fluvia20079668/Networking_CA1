@@ -41,7 +41,7 @@ data "aws_iam_policy_document" "eks_assume_role" {
 }
 
 resource "aws_iam_role" "eks_cluster_role" {
-  name               = "terraform-eks-cluster-role"
+  name               = "terraform-eks-cluster-role-1" 
   assume_role_policy = data.aws_iam_policy_document.eks_assume_role.json
 }
 
@@ -72,7 +72,7 @@ resource "aws_eks_cluster" "eks" {
 
 # --- ECR Repo ---
 resource "aws_ecr_repository" "app" {
-  name                 = "my-simple-app"
+  name                 = "my-simple-app-1"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {

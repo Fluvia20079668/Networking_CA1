@@ -89,24 +89,23 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          # Apply Deployment and Service YAMLs
           kubectl apply -f k8s/k8s-deployment.yaml
           kubectl apply -f k8s/k8s-service.yaml
-
-          # Update Deployment image
           kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
           kubectl rollout status deployment/my-simple-app
 
       - name: Get LoadBalancer URL
         id: get-url
         run: |
-          # Wait until LoadBalancer hostname is available
           for i in {1..20}; do
             URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-            if [ -n "$URL" ]; then break; fi
+            if [ -n "$URL" ]; then
+              break
+            fi
             sleep 15
           done
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
       - name: Show live application link
-        run: echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"
+        run: |
+          echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"

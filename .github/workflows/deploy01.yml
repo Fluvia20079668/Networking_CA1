@@ -29,9 +29,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Terraform Init
+      - name: Terraform Init with S3 backend
         working-directory: ./Infra
-        run: terraform init -input=false -reconfigure
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=my-terraform-state-bucket" \
+            -backend-config="key=infra/terraform.tfstate" \
+            -backend-config="region=eu-north-1" \
+            -backend-config="dynamodb_table=terraform-locks"
 
       - name: Terraform Plan
         working-directory: ./Infra

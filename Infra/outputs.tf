@@ -1,15 +1,19 @@
 output "ecr_repository_url" {
-  value = aws_ecr_repository.app.repository_url
+  description = "The URL of the ECR repository"
+  value       = aws_ecr_repository.app.repository_url
 }
 
 output "eks_cluster_name" {
-  value = aws_eks_cluster.eks.name
+  description = "The name of the EKS cluster"
+  value       = aws_eks_cluster.eks.name
 }
 
 output "public_subnet_ids" {
-  value = aws_subnet.public[*].id
+  description = "IDs of the public subnets"
+  value       = aws_subnet.public[*].id
 }
 
 output "vpc_id" {
-  value = aws_vpc.main.id
+  description = "The ID of the VPC"
+  value       = aws_vpc.main.id
 }

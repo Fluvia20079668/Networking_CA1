@@ -56,7 +56,7 @@ jobs:
     needs: terraform
     env:
       AWS_REGION: eu-north-1
-      IMAGE_REPO: my-simple-app
+      IMAGE_REPO: new-simple-app
       IMAGE_TAG: latest
       ECR_URL: ${{ env.ECR_URL }}
       EKS_NAME: ${{ env.EKS_NAME }}
@@ -96,8 +96,8 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
-          kubectl rollout status deployment/my-simple-app
+          kubectl set image deployment/new-simple-app new-simple-app=$IMAGE_URI
+          kubectl rollout status deployment/new-simple-app
 
       - name: Verify Pods
         run: kubectl get pods -o wide
@@ -105,7 +105,7 @@ jobs:
       - name: Get LoadBalancer URL
         id: get-url
         run: |
-          URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          URL=$(kubectl get svc new-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
       - name: Show live application link

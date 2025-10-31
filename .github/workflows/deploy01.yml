@@ -1,28 +1,26 @@
-name: Build and Deploy to ECR and EKS
+name: Terraform + Build & Deploy
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
 
-env:
-  AWS_REGION: eu-north-1
-  IMAGE_REPO: my-simple-app
-
 jobs:
-  build-and-deploy:
+  terraform:
+    name: Terraform Apply
     runs-on: ubuntu-latest
-
+    env:
+      AWS_REGION: eu-north-1
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout source code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
 
-      # 3️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -30,63 +28,85 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 4️⃣ Log in to Amazon ECR
-      - name: Login to Amazon ECR
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        working-directory: infra
+        run: terraform plan -out=tfplan -input=false
+
+      - name: Terraform Apply
+        working-directory: infra
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Get Terraform outputs
+        working-directory: infra
+        id: tfoutputs
+        run: |
+          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+          echo "EKS_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
+
+  build-and-deploy:
+    name: Build Docker & Deploy
+    runs-on: ubuntu-latest
+    needs: terraform
+    env:
+      AWS_REGION: eu-north-1
+      IMAGE_REPO: my-simple-app
+      IMAGE_TAG: latest
+      ECR_URL: ${{ env.ECR_URL }}
+      EKS_NAME: ${{ env.EKS_NAME }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-          docker login --username AWS --password-stdin $(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
+          docker login --username AWS --password-stdin ${{ env.ECR_URL }}
 
-      # 5️⃣ Build and push Docker image (unique tag per commit)
-      - name: Build and push Docker image
+      - name: Build & Push Docker Image
         run: |
-          ECR_REGISTRY=$(echo "${{ secrets.ECR_REGISTRY }}" | tr -d '\n' | tr -d '\r')
-          IMAGE_TAG=${{ github.sha }}
-          IMAGE_NAME="${ECR_REGISTRY}/${{ env.IMAGE_REPO }}:$IMAGE_TAG"
+          IMAGE_NAME="${{ env.ECR_URL }}/${{ env.IMAGE_REPO }}:${GITHUB_SHA}"
           echo "Building image: $IMAGE_NAME"
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            -t "$IMAGE_NAME" \
-            --push .
+          docker buildx build --platform linux/amd64,linux/arm64 -t "$IMAGE_NAME" --push .
           echo "IMAGE_URI=$IMAGE_NAME" >> $GITHUB_ENV
 
-      # 6️⃣ Set up kubectl
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.30.0'
 
-      # 7️⃣ Configure kubeconfig for EKS cluster
-      - name: Configure kubeconfig for EKS
+      - name: Configure kubeconfig
         run: |
-          aws eks update-kubeconfig --name my-eks-cluster --region ${{ env.AWS_REGION }}
-          kubectl get nodes
+          aws eks update-kubeconfig --name ${{ env.EKS_NAME }} --region ${{ env.AWS_REGION }}
 
-      # 8️⃣ Deploy to EKS with new image
       - name: Deploy to EKS
         run: |
-          echo "Updating deployment with image: $IMAGE_URI"
           kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
-          echo "Waiting for rollout..."
           kubectl rollout status deployment/my-simple-app
 
-      # 9️⃣ Verify pods
-      - name: Verify pods
+      - name: Verify Pods
         run: kubectl get pods -o wide
 
-      # 🔟 Get LoadBalancer URL
       - name: Get LoadBalancer URL
         id: get-url
         run: |
           URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          echo "Live URL: http://$URL"
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
-      # 11️⃣ Show live application link
       - name: Show live application link
         run: |
           echo "✅ Your app is live at:"
           echo "${{ steps.get-url.outputs.url }}"
-
-      # 12️⃣ Cleanup
-      - name: Cleanup
-        run: docker image prune -af

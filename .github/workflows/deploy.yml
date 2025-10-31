@@ -10,8 +10,9 @@ jobs:
   terraform:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    env:
-      AWS_REGION: eu-north-1
+    outputs:
+      ECR_URL: ${{ steps.tfoutputs.outputs.ECR_URL }}
+      EKS_NAME: ${{ steps.tfoutputs.outputs.EKS_NAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,7 +27,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: eu-north-1
 
       - name: Terraform Init
         working-directory: infra
@@ -41,14 +42,14 @@ jobs:
         run: terraform apply -input=false -auto-approve tfplan
 
       - name: Get Terraform outputs
-        working-directory: infra
         id: tfoutputs
+        working-directory: infra
         run: |
-          # Trim hidden characters to prevent kubectl/docker errors
+          # Trim any hidden characters
           ECR_URL=$(terraform output -raw ecr_repository_url | tr -d '\n' | tr -d '\r')
           EKS_NAME=$(terraform output -raw eks_cluster_name | tr -d '\n' | tr -d '\r')
-          echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
-          echo "EKS_NAME=$EKS_NAME" >> $GITHUB_ENV
+          echo "::set-output name=ECR_URL::$ECR_URL"
+          echo "::set-output name=EKS_NAME::$EKS_NAME"
 
   build-and-deploy:
     name: Build Docker & Deploy
@@ -58,8 +59,8 @@ jobs:
       AWS_REGION: eu-north-1
       IMAGE_REPO: my-simple-app
       IMAGE_TAG: latest
-      ECR_URL: ${{ env.ECR_URL }}
-      EKS_NAME: ${{ env.EKS_NAME }}
+      ECR_URL: ${{ needs.terraform.outputs.ECR_URL }}
+      EKS_NAME: ${{ needs.terraform.outputs.EKS_NAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -96,12 +97,6 @@ jobs:
           aws eks update-kubeconfig --name ${{ env.EKS_NAME }} --region ${{ env.AWS_REGION }}
           kubectl config get-contexts
           kubectl get nodes
-
-      - name: Debug kubeconfig
-        run: |
-          echo "Kubeconfig path: $KUBECONFIG"
-          kubectl config current-context
-          kubectl cluster-info
 
       - name: Deploy to EKS
         run: |

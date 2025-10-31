@@ -80,11 +80,10 @@ resource "aws_ecr_repository" "app" {
   }
 }
 
-# --- Outputs ---
-output "ecr_repository_url" {
-  value = aws_ecr_repository.app.repository_url
-}
-
-output "eks_cluster_name" {
-  value = aws_eks_cluster.eks.name
+# --- EC2 Instance ---
+resource "aws_instance" "web" {
+  ami           = var.ami_id
+  instance_type = var.instance_type
+  subnet_id     = aws_subnet.public[0].id
+  tags = { Name = "web-instance" }
 }

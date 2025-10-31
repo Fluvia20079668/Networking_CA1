@@ -7,8 +7,9 @@ vpc_cidr = "10.0.0.0/16"
 # Number of public subnets
 subnet_count = 2
 
-# AMI ID for EC2 instance (must be valid in your region)
-ami_id = "ami-0c55b159cbfafe1f0"
+# AMI ID for EC2 instance (Amazon Linux 2 in us-east-1)
+ami_id = "ami-0c02fb55956c7d316"
 
 # EC2 instance type
 instance_type = "t2.micro"
+

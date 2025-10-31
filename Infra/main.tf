@@ -13,12 +13,12 @@ provider "aws" {
 
 # --- VPC + Subnets ---
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-  tags = { Name = "terraform-vpc" }
+  cidr_block = var.vpc_cidr
+  tags       = { Name = "terraform-vpc" }
 }
 
 resource "aws_subnet" "public" {
-  count                   = 2
+  count                   = var.subnet_count
   vpc_id                  = aws_vpc.main.id
   cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
   map_public_ip_on_launch = true

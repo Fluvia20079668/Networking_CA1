@@ -2,10 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-simple-app
-  labels:
-    app: my-simple-app
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: my-simple-app
@@ -15,7 +13,14 @@ spec:
         app: my-simple-app
     spec:
       containers:
-        - name: my-simple-app
-          image: <IMAGE_URI_PLACEHOLDER>
-          ports:
-            - containerPort: 8090
+      - name: my-simple-app
+        # image will be replaced by the CI workflow env IMAGE_URI
+        image: nginx:stable
+        ports:
+        - containerPort: 8090
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8090
+          initialDelaySeconds: 5
+          periodSeconds: 5

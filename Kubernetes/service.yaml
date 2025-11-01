@@ -3,10 +3,10 @@ kind: Service
 metadata:
   name: my-simple-app-service
 spec:
-  type: LoadBalancer
   selector:
     app: my-simple-app
   ports:
-   - protocol: TCP
-      port: 80
-      targetPort: 8090
+  - protocol: TCP
+    port: 80
+    targetPort: 8090
+  type: LoadBalancer

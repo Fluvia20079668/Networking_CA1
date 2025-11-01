@@ -37,7 +37,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
+          aws-region: us-west-2
 
       - name: Terraform Init
         working-directory: ./Infra
@@ -74,8 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform
     env:
-      AWS_REGION: eu-north-1
-      IMAGE_REPO: my-simple-app
+      AWS_REGION: us-west-2
       IMAGE_TAG: latest
     steps:
       - name: Checkout code
@@ -101,11 +100,11 @@ jobs:
 
       - name: Login to ECR
         run: |
-          docker login --username AWS --password $(aws ecr get-login-password --region ${{ env.AWS_REGION }}) ${{ needs.terraform.outputs.ECR_URL }}
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ needs.terraform.outputs.ECR_URL }}
 
       - name: Build & Push Docker Image
         run: |
-          IMAGE_NAME="${{ needs.terraform.outputs.ECR_URL }}/${{ env.IMAGE_REPO }}:${GITHUB_SHA}"
+          IMAGE_NAME="${{ needs.terraform.outputs.ECR_URL }}:${GITHUB_SHA}"
           echo "Building and pushing image: $IMAGE_NAME"
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
@@ -123,22 +122,47 @@ jobs:
       - name: Configure kubeconfig
         run: |
           aws eks update-kubeconfig --name ${{ needs.terraform.outputs.EKS_NAME }} --region ${{ env.AWS_REGION }}
-          kubectl get nodes
+          kubectl get nodes || true
 
-      - name: Deploy to EKS
+      - name: Apply Kubernetes manifests (create deployment & service if not present)
         run: |
+          kubectl apply -f Kubernetes/deployment.yaml
+          kubectl apply -f Kubernetes/service.yaml
+
+      - name: Update Deployment image and rollout
+        env:
+          IMAGE_URI: ${{ env.IMAGE_URI }}
+        run: |
+          # IMAGE_URI is set above into GITHUB_ENV; ensure it's available
+          IMAGE_URI=${{ env.IMAGE_URI }}
+          if [ -z "$IMAGE_URI" ]; then
+            echo "IMAGE_URI not found in env; trying from GITHUB_ENV"
+            IMAGE_URI=$(cat $GITHUB_ENV | grep IMAGE_URI | cut -d= -f2-)
+          fi
+          echo "Updating deployment image to $IMAGE_URI"
           kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
-          kubectl rollout status deployment/my-simple-app
+          kubectl rollout status deployment/my-simple-app --timeout=180s
 
       - name: Verify Pods
         run: kubectl get pods -o wide
 
-      - name: Get LoadBalancer URL
-        id: get-url
+      - name: Wait for LoadBalancer external hostname
+        id: wait-lb
         run: |
-          URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          echo "url=http://$URL" >> $GITHUB_OUTPUT
+          # Poll for load balancer hostname (timeout after ~10 minutes)
+          for i in {1..60}; do
+            HOST=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$HOST" ]; then
+              echo "Found hostname: $HOST"
+              echo "url=http://$HOST" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "Waiting for load balancer to be ready... ($i/60)"
+            sleep 10
+          done
+          echo "Failed to get load balancer hostname in time"
+          exit 1
 
       - name: Show live application link
         run: |
-          echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"
+          echo "✅ Your app is live at: ${{ steps.wait-lb.outputs.url }}"

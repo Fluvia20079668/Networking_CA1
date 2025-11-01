@@ -29,7 +29,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Initialize Terraform backend (no migrate, just reconfigure)
+      # ✅ Pre-check backend resources before init
+      - name: Verify AWS backend connectivity
+        run: |
+          echo "🔍 Checking S3 and DynamoDB backend..."
+          aws s3api head-bucket --bucket my-github-actions-terraform-state || (echo "❌ S3 bucket not found or access denied" && exit 1)
+          aws dynamodb describe-table --table-name terraform-locks > /dev/null || (echo "❌ DynamoDB table 'terraform-locks' not found or access denied" && exit 1)
+          echo "✅ AWS backend verified successfully."
+
+      # ✅ Initialize Terraform backend
       - name: Terraform Init
         working-directory: Infra
         run: terraform init -input=false -reconfigure

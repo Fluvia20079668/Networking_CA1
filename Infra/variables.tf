@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-west-2"
+  default     = "eu-north-1"
 }
 
 variable "vpc_cidr" {
@@ -19,12 +19,11 @@ variable "subnet_count" {
 variable "ami_id" {
   description = "AMI ID for EC2 instances (if needed)"
   type        = string
-  default     = "ami-0c02fb55956c7d316"
+  default     = ""
 }
 
 variable "instance_type" {
-  description = "EC2 instance type (if needed)"
+  description = "EC2 instance type for node group"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.medium"
 }
-

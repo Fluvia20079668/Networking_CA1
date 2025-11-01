@@ -1,14 +1,21 @@
-# Use official node image
+# Use lightweight node image
 FROM node:18-alpine
-#WORKDIR creates/sets /app as the working directory inside the container.
-WORKDIR /app
-#Copies package.json and package-lock.json (if present) into the image. Doing this first helps Docker cache layer and speeds rebuilds when only source changes.
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Copy package manifests first (for caching)
 COPY package*.json ./
-#Installs dependencies from package-lock.json exactly. npm ci is faster and deterministic for CI/production. --only=production skips devDependencies (keeps image smaller).
-RUN npm ci --only=production
-#Copies the rest of your source code into the image (index.js, other files). Because we copied package*.json and ran install earlier, Docker will reuse the installed layer unless package files changed.
+
+# Install dependencies
+RUN npm install --production
+
+# Copy app source
 COPY . .
-#Declares that the app listens on port 8090. This is informational only — it doesn’t publish the port to your host by itself.
+
+# Expose the port your app listens on
 EXPOSE 8090
-#Default command that runs when the container starts. This runs your app with node.
+
+# Start the app
 CMD ["node", "index.js"]
+

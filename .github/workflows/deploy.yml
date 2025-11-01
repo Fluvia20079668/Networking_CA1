@@ -17,6 +17,7 @@ jobs:
     outputs:
       ECR_URL: ${{ steps.tfoutputs.outputs.ecr_repository_url }}
       EKS_NAME: ${{ steps.tfoutputs.outputs.eks_cluster_name }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,6 +60,7 @@ jobs:
     env:
       AWS_REGION: ${{ env.AWS_REGION }}
       IMAGE_REPO: ${{ env.IMAGE_REPO }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,7 +78,7 @@ jobs:
       - name: Login to ECR
         run: |
           ECR_URL="${{ needs.terraform.outputs.ECR_URL }}"
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URL
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin "$ECR_URL"
 
       - name: Build & Push Docker Image
         run: |
@@ -94,12 +96,11 @@ jobs:
 
       - name: Configure kubeconfig
         run: |
-          aws eks update-kubeconfig --name ${{ needs.terraform.outputs.EKS_NAME }} --region ${{ env.AWS_REGION }}
+          aws eks update-kubeconfig --name "${{ needs.terraform.outputs.EKS_NAME }}" --region ${{ env.AWS_REGION }}
           kubectl get nodes
 
       - name: Deploy to EKS (apply manifests & update image)
         run: |
-          # apply manifests (these create the deployment & service if absent)
           sed -i "s|image: nginx:stable|image: $IMAGE_URI|g" k8s/k8s-deployment.yaml
           kubectl apply -f k8s/k8s-deployment.yaml
           kubectl apply -f k8s/k8s-service.yaml
@@ -118,4 +119,4 @@ jobs:
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
       - name: Show live application link
-        run: echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"
+        run: echo '✅ Your app is live at: ${{ steps.get-url.outputs.url }}'

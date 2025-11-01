@@ -11,7 +11,11 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: us-west-2   # ✅ Matches your S3 bucket + DynamoDB region
+      AWS_REGION: us-west-2   # ✅ Matches your S3 + DynamoDB region
+
+    outputs:
+      ECR_URL: ${{ steps.tfoutputs.outputs.ECR_URL }}
+      EKS_NAME: ${{ steps.tfoutputs.outputs.EKS_NAME }}
 
     steps:
       - name: Checkout code
@@ -29,15 +33,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Pre-check backend resources before init
-      - name: Verify AWS backend connectivity
-        run: |
-          echo "🔍 Checking S3 and DynamoDB backend..."
-          aws s3api head-bucket --bucket my-github-actions-terraform-state || (echo "❌ S3 bucket not found or access denied" && exit 1)
-          aws dynamodb describe-table --table-name terraform-locks > /dev/null || (echo "❌ DynamoDB table 'terraform-locks' not found or access denied" && exit 1)
-          echo "✅ AWS backend verified successfully."
-
-      # ✅ Initialize Terraform backend
       - name: Terraform Init
         working-directory: Infra
         run: terraform init -input=false -reconfigure
@@ -50,24 +45,23 @@ jobs:
         working-directory: Infra
         run: terraform apply -input=false -auto-approve tfplan
 
-      # ✅ Capture Terraform outputs for next job
       - name: Get Terraform outputs
         id: tfoutputs
         working-directory: Infra
         run: |
-          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
-          echo "EKS_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
+          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+          echo "EKS_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_OUTPUT
 
   build-and-deploy:
     name: Build Docker & Deploy
     runs-on: ubuntu-latest
     needs: terraform
     env:
-      AWS_REGION: us-west-2   # ✅ Keep consistent with Terraform region
+      AWS_REGION: us-west-2
       IMAGE_REPO: my-simple-app
       IMAGE_TAG: latest
-      ECR_URL: ${{ env.ECR_URL }}
-      EKS_NAME: ${{ env.EKS_NAME }}
+      ECR_URL: ${{ needs.terraform.outputs.ECR_URL }}
+      EKS_NAME: ${{ needs.terraform.outputs.EKS_NAME }}
 
     steps:
       - name: Checkout code

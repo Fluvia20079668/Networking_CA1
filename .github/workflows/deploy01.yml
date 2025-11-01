@@ -14,17 +14,14 @@ jobs:
       ECR_URL: ${{ steps.tfoutputs.outputs.ECR_URL }}
       EKS_NAME: ${{ steps.tfoutputs.outputs.EKS_NAME }}
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.0
 
-      # 3️⃣ Cache Terraform plugins and modules
       - name: Cache Terraform
         uses: actions/cache@v3
         with:
@@ -35,7 +32,6 @@ jobs:
           restore-keys: |
             terraform-
 
-      # 4️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -43,30 +39,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      # 5️⃣ Terraform Init
       - name: Terraform Init
         working-directory: ./Infra
         run: terraform init -input=false
 
-      # 6️⃣ Optional: Destroy old resources (only on manual dispatch)
-      - name: Optional: Destroy old resources
+      - name: Optional Destroy old resources
         if: github.event_name == 'workflow_dispatch'
         working-directory: ./Infra
         run: |
           echo "Destroying previous Terraform resources (if any)..."
           terraform destroy -auto-approve || echo "No previous resources to destroy"
 
-      # 7️⃣ Terraform Plan
       - name: Terraform Plan
         working-directory: ./Infra
         run: terraform plan -out=tfplan -input=false
 
-      # 8️⃣ Terraform Apply
       - name: Terraform Apply
         working-directory: ./Infra
         run: terraform apply -input=false -auto-approve tfplan
 
-      # 9️⃣ Get Terraform outputs
       - name: Get Terraform outputs
         id: tfoutputs
         working-directory: ./Infra
@@ -87,11 +78,9 @@ jobs:
       IMAGE_REPO: my-simple-app
       IMAGE_TAG: latest
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -99,11 +88,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3️⃣ Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4️⃣ Cache Docker layers
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
@@ -112,12 +99,10 @@ jobs:
           restore-keys: |
             docker-
 
-      # 5️⃣ Login to ECR
       - name: Login to ECR
         run: |
           docker login --username AWS --password $(aws ecr get-login-password --region ${{ env.AWS_REGION }}) ${{ needs.terraform.outputs.ECR_URL }}
 
-      # 6️⃣ Build & Push Docker Image
       - name: Build & Push Docker Image
         run: |
           IMAGE_NAME="${{ needs.terraform.outputs.ECR_URL }}/${{ env.IMAGE_REPO }}:${GITHUB_SHA}"
@@ -130,36 +115,30 @@ jobs:
             --push .
           echo "IMAGE_URI=$IMAGE_NAME" >> $GITHUB_ENV
 
-      # 7️⃣ Set up kubectl
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.30.0'
 
-      # 8️⃣ Configure kubeconfig
       - name: Configure kubeconfig
         run: |
           aws eks update-kubeconfig --name ${{ needs.terraform.outputs.EKS_NAME }} --region ${{ env.AWS_REGION }}
           kubectl get nodes
 
-      # 9️⃣ Deploy to EKS
       - name: Deploy to EKS
         run: |
           kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
           kubectl rollout status deployment/my-simple-app
 
-      # 🔟 Verify Pods
       - name: Verify Pods
         run: kubectl get pods -o wide
 
-      # 1️⃣1️⃣ Get LoadBalancer URL
       - name: Get LoadBalancer URL
         id: get-url
         run: |
           URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
-      # 1️⃣2️⃣ Show live application link
       - name: Show live application link
         run: |
           echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"

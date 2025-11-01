@@ -15,7 +15,6 @@ jobs:
     outputs:
       ECR_URL: ${{ steps.tfoutputs.outputs.ECR_URL }}
       EKS_NAME: ${{ steps.tfoutputs.outputs.EKS_NAME }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,28 +31,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Added -migrate-state for smooth CI/CD backend handling
-      - name: Terraform Init (auto-migrate backend)
-        working-directory: infra
+      # ✅ Corrected path + added migrate-state flag
+      - name: Terraform Init (with state migration)
+        working-directory: ./Infra
         run: terraform init -input=false -migrate-state
 
       - name: Terraform Plan
-        working-directory: infra
+        working-directory: ./Infra
         run: terraform plan -out=tfplan -input=false
 
       - name: Terraform Apply
-        working-directory: infra
+        working-directory: ./Infra
         run: terraform apply -input=false -auto-approve tfplan
 
-      # ✅ Outputs must use GITHUB_OUTPUT for passing between jobs
       - name: Get Terraform outputs
         id: tfoutputs
-        working-directory: infra
+        working-directory: ./Infra
         run: |
-          ECR_URL=$(terraform output -raw ecr_repository_url | tr -d '\n' | tr -d '\r')
-          EKS_NAME=$(terraform output -raw eks_cluster_name | tr -d '\n' | tr -d '\r')
-          echo "ECR_URL=$ECR_URL" >> $GITHUB_OUTPUT
-          echo "EKS_NAME=$EKS_NAME" >> $GITHUB_OUTPUT
+          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+          echo "EKS_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_OUTPUT
 
   build-and-deploy:
     name: Build Docker & Deploy
@@ -86,7 +82,10 @@ jobs:
         run: |
           IMAGE_NAME="${{ needs.terraform.outputs.ECR_URL }}/${{ env.IMAGE_REPO }}:${GITHUB_SHA}"
           echo "Building and pushing image: $IMAGE_NAME"
-          docker buildx build --platform linux/amd64,linux/arm64 -t "$IMAGE_NAME" --push .
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t "$IMAGE_NAME" \
+            --push .
           echo "IMAGE_URI=$IMAGE_NAME" >> $GITHUB_ENV
 
       - name: Set up kubectl
@@ -114,4 +113,5 @@ jobs:
 
       - name: Show live application link
         run: |
-          echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"
+          echo "✅ Your app is live at:"
+          echo "${{ steps.get-url.outputs.url }}"

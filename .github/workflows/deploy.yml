@@ -99,11 +99,19 @@ jobs:
           aws eks update-kubeconfig --name "${{ needs.terraform.outputs.EKS_NAME }}" --region ${{ env.AWS_REGION }}
           kubectl get nodes
 
-      - name: Deploy to EKS (apply manifests & update image)
+      - name: Deploy to EKS (apply manifests, update image & restart)
         run: |
+          # Update deployment manifest with new image
           sed -i "s|image: nginx:stable|image: $IMAGE_URI|g" k8s/k8s-deployment.yaml
+          
+          # Apply manifests
           kubectl apply -f k8s/k8s-deployment.yaml
           kubectl apply -f k8s/k8s-service.yaml
+          
+          # Force rollout restart to pick up new image
+          kubectl rollout restart deployment/my-simple-app
+          
+          # Wait for deployment to complete
           kubectl rollout status deployment/my-simple-app --timeout=120s
 
       - name: Get LoadBalancer URL
@@ -120,3 +128,8 @@ jobs:
 
       - name: Show live application link
         run: echo '✅ Your app is live at: ${{ steps.get-url.outputs.url }}'
+
+      - name: Add app URL to GitHub Actions summary
+        run: |
+          echo "### 🚀 Live Application" >> $GITHUB_STEP_SUMMARY
+          echo "[Open My App](${{ steps.get-url.outputs.url }})" >> $GITHUB_STEP_SUMMARY

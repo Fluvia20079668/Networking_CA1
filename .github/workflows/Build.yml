@@ -1,0 +1,74 @@
+name: Build and Deploy to ECR and EKS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: eu-north-1
+  IMAGE_REPO: my-simple-app
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          IMAGE_NAME="${{ secrets.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:$IMAGE_TAG"
+          echo "Building image: $IMAGE_NAME"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t "$IMAGE_NAME" \
+            --push .
+          echo "IMAGE_URI=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.30.0'
+
+      - name: Configure kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --name my-eks-cluster --region ${{ env.AWS_REGION }}
+          kubectl get nodes
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f k8s/k8s-deployment.yaml
+          kubectl apply -f k8s/k8s-service.yaml
+          kubectl set image deployment/my-simple-app my-simple-app=$IMAGE_URI
+          kubectl rollout status deployment/my-simple-app
+
+      - name: Get LoadBalancer URL
+        id: get-url
+        run: |
+          for i in {1..20}; do
+            URL=$(kubectl get svc my-simple-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            if [ -n "$URL" ]; then break; fi
+            sleep 15
+          done
+          echo "url=http://$URL" >> $GITHUB_OUTPUT
+
+      - name: Show live application link
+        run: echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"

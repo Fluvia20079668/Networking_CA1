@@ -34,20 +34,20 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
-        working-directory: .
+        working-directory: Infra
         run: terraform init -input=false
 
       - name: Terraform Plan
-        working-directory: .
+        working-directory: Infra
         run: terraform plan -out=tfplan -input=false
 
       - name: Terraform Apply
-        working-directory: .
+        working-directory: Infra
         run: terraform apply -auto-approve tfplan
 
       - name: Get Terraform outputs
         id: tfoutputs
-        working-directory: .
+        working-directory: Infra
         run: |
           echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
           echo "EKS_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_OUTPUT

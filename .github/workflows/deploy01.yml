@@ -29,12 +29,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Terraform Init (no migration, safe for re-runs)
-      - name: Terraform Init
+      # ✅ Terraform Init with non-interactive confirmation
+      - name: Terraform Init (non-interactive)
         working-directory: Infra
         run: |
           rm -rf .terraform
-          terraform init -reconfigure -backend-config="region=${{ env.AWS_REGION }}" -lock=false -input=false
+          yes | terraform init -reconfigure -backend-config="region=${{ env.AWS_REGION }}" -lock=false
 
       - name: Terraform Plan
         working-directory: Infra
@@ -42,7 +42,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: Infra
-        run: terraform apply -input=false -auto-approve tfplan
+        run: terraform apply -auto-approve tfplan
 
       - name: Get Terraform outputs
         id: tfoutputs
@@ -59,8 +59,8 @@ jobs:
       AWS_REGION: us-west-2
       IMAGE_REPO: my-simple-app
       IMAGE_TAG: latest
-      ECR_URL: ${{ needs.terraform.outputs.ECR_URL }}
-      EKS_NAME: ${{ needs.terraform.outputs.EKS_NAME }}
+      ECR_URL: ${{ env.ECR_URL }}
+      EKS_NAME: ${{ env.EKS_NAME }}
 
     steps:
       - name: Checkout code

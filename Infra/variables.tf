@@ -1,19 +1,28 @@
+# AWS region
 variable "aws_region" {
-  type    = string
-  default = "us-west-2"
+  description = "The AWS region to deploy resources in"
+  type        = string
+  default     = "us-west-2"
 }
 
+# VPC CIDR
 variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
+  description = "CIDR block for the VPC"
+  type        = string
+  default     = "10.0.0.0/16"
 }
 
-variable "subnet_count" {
-  type    = number
-  default = 2
+# Number of public subnets
+variable "public_subnet_count" {
+  description = "Number of public subnets"
+  type        = number
+  default     = 2
 }
 
-variable "instance_type" {
-  type    = string
-  default = "t3.medium"
+# Number of private subnets
+variable "private_subnet_count" {
+  description = "Number of private subnets"
+  type        = number
+  default     = 2
 }
+

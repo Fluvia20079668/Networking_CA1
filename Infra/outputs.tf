@@ -11,7 +11,7 @@ output "private_subnets" {
 }
 
 output "eks_cluster_name" {
-  value = module.eks.this_eks_cluster_name
+  value = module.eks.cluster_id
 }
 
 output "eks_cluster_endpoint" {

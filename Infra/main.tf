@@ -1,8 +1,13 @@
+####################################################
+# PROVIDER
+####################################################
 provider "aws" {
   region = var.aws_region
 }
 
-# --- VPC ---
+####################################################
+# VPC
+####################################################
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -13,10 +18,14 @@ resource "aws_vpc" "main" {
   }
 }
 
-# --- Availability Zones ---
+####################################################
+# AVAILABILITY ZONES
+####################################################
 data "aws_availability_zones" "available" {}
 
-# --- Public Subnets ---
+####################################################
+# PUBLIC SUBNETS
+####################################################
 resource "aws_subnet" "public" {
   count                   = var.public_subnet_count
   vpc_id                  = aws_vpc.main.id
@@ -29,7 +38,9 @@ resource "aws_subnet" "public" {
   }
 }
 
-# --- Private Subnets ---
+####################################################
+# PRIVATE SUBNETS
+####################################################
 resource "aws_subnet" "private" {
   count             = var.private_subnet_count
   vpc_id            = aws_vpc.main.id
@@ -41,29 +52,35 @@ resource "aws_subnet" "private" {
   }
 }
 
-# --- EKS Cluster ---
+####################################################
+# EKS CLUSTER
+####################################################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "18.29.1"
 
-  cluster_name    = "my-eks-cluster"   # <-- change here
-  cluster_version = "1.29"
+  cluster_name    = var.cluster_name       # e.g., "my-eks-cluster"
+  cluster_version = var.cluster_version    # e.g., "1.29"
   vpc_id          = aws_vpc.main.id
   subnet_ids      = concat(
     aws_subnet.public[*].id,
     aws_subnet.private[*].id
   )
-}
+
+  manage_aws_auth = true
 
   node_groups = {
     default = {
-      desired_capacity = 2
-      max_capacity     = 3
-      min_capacity     = 1
+      desired_capacity = var.node_desired_capacity
+      min_capacity     = var.node_min_capacity
+      max_capacity     = var.node_max_capacity
       instance_type    = var.instance_type
       ami_id           = var.ami_id
     }
   }
 
-  manage_aws_auth = true
+  tags = {
+    Environment = var.environment
+    Terraform   = "true"
+  }
 }

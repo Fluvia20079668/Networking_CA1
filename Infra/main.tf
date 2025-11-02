@@ -121,6 +121,7 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
   vpc_id          = aws_vpc.main.id
+  cluster_subnets = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
 
   node_groups = {
     default = {
@@ -129,7 +130,7 @@ module "eks" {
       max_capacity     = var.node_max_capacity
       instance_type    = var.instance_type
       ami_type         = "AL2_x86_64"
-      subnets          = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
+      subnet_ids       = aws_subnet.private[*].id
     }
   }
 

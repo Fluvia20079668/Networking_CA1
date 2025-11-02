@@ -11,7 +11,7 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: us-west-2   # ✅ Must match S3 + DynamoDB region
+      AWS_REGION: us-west-2  # ✅ matches your S3 + DynamoDB region
 
     steps:
       - name: Checkout code
@@ -29,15 +29,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Clean old init data to prevent lock or migration issues
-      - name: Clean Terraform cache
-        working-directory: Infra
-        run: rm -rf .terraform
-
-      # ✅ Initialize Terraform backend cleanly
+      # ✅ Terraform Init (ignore locks temporarily)
       - name: Terraform Init
         working-directory: Infra
-        run: terraform init -reconfigure -backend-config="region=${{ env.AWS_REGION }}"
+        run: |
+          rm -rf .terraform
+          terraform init -reconfigure -backend-config="region=${{ env.AWS_REGION }}" -lock=false -input=false
 
       - name: Terraform Plan
         working-directory: Infra
@@ -45,9 +42,9 @@ jobs:
 
       - name: Terraform Apply
         working-directory: Infra
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -input=false -auto-approve tfplan
 
-      # ✅ Capture Terraform outputs for the next job
+      # ✅ Capture outputs for next job
       - name: Get Terraform outputs
         id: tfoutputs
         working-directory: Infra
@@ -60,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform
     env:
-      AWS_REGION: us-west-2   # ✅ Consistent with backend
+      AWS_REGION: us-west-2
       IMAGE_REPO: my-simple-app
       IMAGE_TAG: latest
 
@@ -81,12 +78,11 @@ jobs:
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-          docker login --username AWS --password-stdin $(terraform -chdir=Infra output -raw ecr_repository_url)
+          docker login --username AWS --password-stdin ${{ env.ECR_URL }}
 
       - name: Build & Push Docker Image
         run: |
-          ECR_URL=$(terraform -chdir=Infra output -raw ecr_repository_url)
-          IMAGE_NAME="$ECR_URL/${{ env.IMAGE_REPO }}:${GITHUB_SHA}"
+          IMAGE_NAME="${{ env.ECR_URL }}/${{ env.IMAGE_REPO }}:${GITHUB_SHA}"
           echo "Building image: $IMAGE_NAME"
           docker buildx build --platform linux/amd64,linux/arm64 -t "$IMAGE_NAME" --push .
           echo "IMAGE_URI=$IMAGE_NAME" >> $GITHUB_ENV
@@ -98,8 +94,7 @@ jobs:
 
       - name: Configure kubeconfig
         run: |
-          EKS_NAME=$(terraform -chdir=Infra output -raw eks_cluster_name)
-          aws eks update-kubeconfig --name "$EKS_NAME" --region ${{ env.AWS_REGION }}
+          aws eks update-kubeconfig --name ${{ env.EKS_NAME }} --region ${{ env.AWS_REGION }}
 
       - name: Deploy to EKS
         run: |

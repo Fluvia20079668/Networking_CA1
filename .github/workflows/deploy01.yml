@@ -33,9 +33,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Terraform Init
+      - name: Terraform Init (with upgrade)
         working-directory: Infra
-        run: terraform init -input=false
+        run: terraform init -input=false -upgrade
 
       - name: Terraform Plan
         working-directory: Infra

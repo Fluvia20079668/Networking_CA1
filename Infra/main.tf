@@ -44,13 +44,13 @@ resource "aws_subnet" "private" {
 # --- EKS Cluster ---
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "21.8.0"
+  version = "21.8.0"          # Module version
 
   # Cluster settings
-  name       = "my-eks-cluster"
-  version    = "1.29"
-  vpc_id     = aws_vpc.main.id
-  subnet_ids = concat(
+  name            = "my-eks-cluster"
+  cluster_version = "1.29"     # Cluster version
+  vpc_id          = aws_vpc.main.id
+  subnet_ids      = concat(
     aws_subnet.public[*].id,
     aws_subnet.private[*].id
   )

@@ -11,7 +11,7 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: us-west-2  # ✅ matches your S3 + DynamoDB region
+      AWS_REGION: us-west-2
 
     steps:
       - name: Checkout code
@@ -29,12 +29,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Terraform Init (ignore locks temporarily)
+      # ✅ Terraform Init with state migration (non-interactive)
       - name: Terraform Init
         working-directory: Infra
         run: |
           rm -rf .terraform
-          terraform init -reconfigure -backend-config="region=${{ env.AWS_REGION }}" -lock=false -input=false
+          terraform init -migrate-state -backend-config="region=${{ env.AWS_REGION }}" -lock=false
 
       - name: Terraform Plan
         working-directory: Infra
@@ -44,7 +44,6 @@ jobs:
         working-directory: Infra
         run: terraform apply -input=false -auto-approve tfplan
 
-      # ✅ Capture outputs for next job
       - name: Get Terraform outputs
         id: tfoutputs
         working-directory: Infra

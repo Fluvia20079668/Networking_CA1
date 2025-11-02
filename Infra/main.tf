@@ -27,6 +27,17 @@ resource "aws_vpc" "main" {
 }
 
 # -------------------------
+# Internet Gateway
+# -------------------------
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "main-igw"
+  }
+}
+
+# -------------------------
 # Availability Zones
 # -------------------------
 data "aws_availability_zones" "available" {}
@@ -35,7 +46,7 @@ data "aws_availability_zones" "available" {}
 # Public Subnets
 # -------------------------
 resource "aws_subnet" "public" {
-  count                   = length(data.aws_availability_zones.available.names)
+  count                   = var.public_subnet_count
   vpc_id                  = aws_vpc.main.id
   cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone       = data.aws_availability_zones.available.names[count.index]
@@ -50,7 +61,7 @@ resource "aws_subnet" "public" {
 # Private Subnets
 # -------------------------
 resource "aws_subnet" "private" {
-  count             = length(data.aws_availability_zones.available.names)
+  count             = var.private_subnet_count
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 10)
   availability_zone = data.aws_availability_zones.available.names[count.index]
@@ -61,7 +72,7 @@ resource "aws_subnet" "private" {
 }
 
 # -------------------------
-# EKS Cluster
+# EKS Cluster (Module v17.x)
 # -------------------------
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -71,37 +82,22 @@ module "eks" {
   cluster_version = var.cluster_version
   vpc_id          = aws_vpc.main.id
 
-  # Use vpc_subnets instead of deprecated subnet_ids
-  vpc_subnets = {
-    public  = aws_subnet.public[*].id
-    private = aws_subnet.private[*].id
-  }
+  # Use subnet_ids for v17.x
+  subnet_ids = concat(
+    aws_subnet.public[*].id,
+    aws_subnet.private[*].id
+  )
 
   node_groups = {
     default = {
-      desired_capacity = var.node_desired
-      max_capacity     = var.node_max
-      min_capacity     = var.node_min
-      instance_types   = var.node_instance_type
+      desired_capacity = var.node_desired_capacity
+      max_capacity     = var.node_max_capacity
+      min_capacity     = var.node_min_capacity
+      instance_types   = [var.instance_type]
     }
   }
 
   tags = {
-    Environment = "dev"
+    Environment = var.environment
   }
-}
-
-# -------------------------
-# Output
-# -------------------------
-output "cluster_name" {
-  value = module.eks.cluster_id
-}
-
-output "cluster_endpoint" {
-  value = module.eks.cluster_endpoint
-}
-
-output "cluster_security_group_id" {
-  value = module.eks.cluster_security_group_id
 }

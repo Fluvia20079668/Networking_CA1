@@ -17,7 +17,7 @@ output "private_subnet_ids" {
 }
 
 ####################################################
-# Internet Gateway Outputs
+# Internet Gateway Output
 ####################################################
 output "internet_gateway_id" {
   description = "The ID of the Internet Gateway"

@@ -33,11 +33,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ One-time migration to S3 backend
-      - name: Terraform Init (Migrate State)
+      # ✅ Terraform Init (non-interactive, safe for CI/CD)
+      - name: Terraform Init
         working-directory: Infra
-        run: |
-          terraform init -migrate-state -backend-config="region=${{ env.AWS_REGION }}" -lock=false
+        run: terraform init -lock=false -input=false
 
       - name: Terraform Plan
         working-directory: Infra

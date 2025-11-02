@@ -44,18 +44,16 @@ resource "aws_subnet" "private" {
 # --- EKS Cluster ---
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "21.8.0"          # Module version
+  version = "18.29.1"         # Module version compatible with cluster_version
 
-  # Cluster settings
   name            = "my-eks-cluster"
-  cluster_version = "1.29"     # Cluster version
+  cluster_version = "1.29"
   vpc_id          = aws_vpc.main.id
   subnet_ids      = concat(
     aws_subnet.public[*].id,
     aws_subnet.private[*].id
   )
 
-  # Node groups
   node_groups = {
     default = {
       desired_capacity = 2

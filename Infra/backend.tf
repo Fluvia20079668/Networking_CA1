@@ -13,10 +13,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "my-github-actions-terraform-state"
+    bucket  = "my-github-actions-terraform-state" # Replace with your actual bucket name
     key     = "infra/terraform.tfstate"
     region  = "us-west-2"
     encrypt = true
+    # dynamodb_table = "my-terraform-lock-table" # optional, for state locking
   }
 }
 

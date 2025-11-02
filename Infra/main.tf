@@ -2,7 +2,29 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Unique suffix for resource names
+variable "aws_region" {
+  type    = string
+  default = "us-west-2"
+}
+
+variable "vpc_cidr" {
+  type    = string
+  default = "10.0.0.0/16"
+}
+
+variable "subnet_count" {
+  type    = number
+  default = 2
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t3.medium"
+}
+
+# -----------------------------
+# Unique suffix
+# -----------------------------
 resource "random_string" "suffix" {
   length  = 6
   upper   = false
@@ -17,9 +39,7 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = {
-    Name = "tf-vpc-${random_string.suffix.result}"
-  }
+  tags = { Name = "tf-vpc-${random_string.suffix.result}" }
 }
 
 data "aws_availability_zones" "available" {}
@@ -30,13 +50,11 @@ data "aws_availability_zones" "available" {}
 resource "aws_subnet" "public" {
   count                   = var.subnet_count
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
+  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 4, count.index) # fixed from 8
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
-  tags = {
-    Name = "public-subnet-${count.index}-${random_string.suffix.result}"
-  }
+  tags = { Name = "public-subnet-${count.index}-${random_string.suffix.result}" }
 }
 
 # -----------------------------
@@ -44,7 +62,7 @@ resource "aws_subnet" "public" {
 # -----------------------------
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-  tags = { Name = "igw-${random_string.suffix.result}" }
+  tags   = { Name = "igw-${random_string.suffix.result}" }
 }
 
 resource "aws_route_table" "public" {
@@ -65,7 +83,7 @@ resource "aws_route_table_association" "public_assoc" {
 }
 
 # -----------------------------
-# Security Group for Nodes
+# Security Group
 # -----------------------------
 resource "aws_security_group" "eks_nodes" {
   name        = "eks-nodes-sg-${random_string.suffix.result}"
@@ -174,7 +192,7 @@ resource "aws_iam_role_policy_attachment" "node_AmazonEC2ContainerRegistryReadOn
 }
 
 # -----------------------------
-# EKS Managed Node Group
+# EKS Node Group
 # -----------------------------
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.eks.name
@@ -190,11 +208,14 @@ resource "aws_eks_node_group" "default" {
 
   instance_types = [var.instance_type]
 
-  tags = {
-    Name = "eks-ng-${random_string.suffix.result}"
-  }
+  tags = { Name = "eks-ng-${random_string.suffix.result}" }
 
-  depends_on = [aws_eks_cluster.eks]
+  depends_on = [
+    aws_eks_cluster.eks,
+    aws_iam_role_policy_attachment.node_AmazonEKSWorkerNodePolicy,
+    aws_iam_role_policy_attachment.node_AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.node_AmazonEC2ContainerRegistryReadOnly
+  ]
 }
 
 # -----------------------------
@@ -207,4 +228,15 @@ resource "aws_ecr_repository" "app" {
   encryption_configuration {
     encryption_type = "AES256"
   }
+}
+
+# -----------------------------
+# Outputs
+# -----------------------------
+output "ecr_repository_url" {
+  value = aws_ecr_repository.app.repository_url
+}
+
+output "eks_cluster_name" {
+  value = aws_eks_cluster.eks.name
 }

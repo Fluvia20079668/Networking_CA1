@@ -1,140 +1,60 @@
-#####################################
-# Provider
-#####################################
 provider "aws" {
   region = var.aws_region
 }
 
-#####################################
-# Variables
-#####################################
-variable "aws_region" {
-  type    = string
-  default = "us-west-2"
-}
-
-variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
-}
-
-variable "eks_name" {
-  type    = string
-  default = "my-eks-cluster"
-}
-
-variable "suffix" {
-  type    = string
-  default = "yc3rg8"
-}
-
-#####################################
-# Data Sources
-#####################################
-# Availability zones
-data "aws_availability_zones" "available" {}
-
-#####################################
-# VPC (if not already existing)
-#####################################
+# --- VPC ---
 resource "aws_vpc" "main" {
-  cidr_block = var.vpc_cidr
+  cidr_block           = var.vpc_cidr
+  enable_dns_hostnames = true
+  enable_dns_support   = true
   tags = {
-    Name = "main-vpc-${var.suffix}"
+    Name = "main-vpc"
   }
 }
 
-#####################################
-# Existing Public Subnets (example)
-#####################################
+# --- Availability Zones ---
+data "aws_availability_zones" "available" {}
+
+# --- Public Subnets ---
 resource "aws_subnet" "public" {
-  count                   = 2
+  count                   = var.public_subnet_count
   vpc_id                  = aws_vpc.main.id
   cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "public-subnet-${count.index}-${var.suffix}"
+    Name = "public-subnet-${count.index}"
   }
 }
 
-#####################################
-# Extra Public Subnets
-#####################################
-resource "aws_subnet" "public_extra" {
-  count                   = 2
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 10)
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
-  map_public_ip_on_launch = true
+# --- Private Subnets ---
+resource "aws_subnet" "private" {
+  count             = var.private_subnet_count
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + var.public_subnet_count)
+  availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name = "public-extra-subnet-${count.index}-${var.suffix}"
+    Name = "private-subnet-${count.index}"
   }
 }
 
-#####################################
-# EKS IAM Role
-#####################################
-resource "aws_iam_role" "eks_cluster" {
-  name = "eks-cluster-role-${var.suffix}"
+# --- EKS Cluster ---
+module "eks" {
+  source          = "terraform-aws-modules/eks/aws"
+  cluster_name    = "my-eks-cluster"
+  cluster_version = "1.29"
+  subnets         = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
+  vpc_id          = aws_vpc.main.id
+  manage_aws_auth = true
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = {
-        Service = "eks.amazonaws.com"
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cluster_AmazonEKSClusterPolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks_cluster.name
-}
-
-#####################################
-# EKS Cluster
-#####################################
-resource "aws_eks_cluster" "main" {
-  name     = var.eks_name
-  role_arn = aws_iam_role.eks_cluster.arn
-
-  vpc_config {
-    # Combine old public subnets and new subnets
-    subnet_ids = concat(
-      aws_subnet.public[*].id,
-      aws_subnet.public_extra[*].id
-    )
-
-    endpoint_private_access = true
-    endpoint_public_access  = true
+  node_groups = {
+    default = {
+      desired_capacity = 2
+      max_capacity     = 3
+      min_capacity     = 1
+      instance_type    = "t3.medium"
+    }
   }
-
-  tags = {
-    Name = var.eks_name
-  }
-}
-
-#####################################
-# Output
-#####################################
-output "eks_cluster_endpoint" {
-  value = aws_eks_cluster.main.endpoint
-}
-
-output "eks_cluster_arn" {
-  value = aws_eks_cluster.main.arn
-}
-
-output "public_subnets" {
-  value = aws_subnet.public[*].id
-}
-
-output "extra_public_subnets" {
-  value = aws_subnet.public_extra[*].id
 }

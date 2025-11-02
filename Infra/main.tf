@@ -1,6 +1,25 @@
-####################################################
-# PROVIDER
-####################################################
+terraform {
+  required_version = ">= 1.6.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.15"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
+  }
+
+  backend "s3" {
+    bucket  = "my-github-actions-terraform-state"
+    key     = "infra/terraform.tfstate"
+    region  = "us-west-2"
+    encrypt = true
+  }
+}
+
 provider "aws" {
   region = var.aws_region
 }
@@ -14,17 +33,20 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name = "main-vpc"
+    Name        = "main-vpc"
+    Environment = var.environment
   }
 }
 
 ####################################################
-# AVAILABILITY ZONES
+# Availability Zones
 ####################################################
-data "aws_availability_zones" "available" {}
+data "aws_availability_zones" "available" {
+  state = "available"
+}
 
 ####################################################
-# PUBLIC SUBNETS
+# Public Subnets
 ####################################################
 resource "aws_subnet" "public" {
   count                   = var.public_subnet_count
@@ -34,12 +56,13 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "public-subnet-${count.index}"
+    Name        = "public-subnet-${count.index + 1}"
+    Environment = var.environment
   }
 }
 
 ####################################################
-# PRIVATE SUBNETS
+# Private Subnets
 ####################################################
 resource "aws_subnet" "private" {
   count             = var.private_subnet_count
@@ -48,33 +71,65 @@ resource "aws_subnet" "private" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name = "private-subnet-${count.index}"
+    Name        = "private-subnet-${count.index + 1}"
+    Environment = var.environment
   }
 }
 
 ####################################################
-# EKS CLUSTER
+# Internet Gateway
+####################################################
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name        = "main-igw"
+    Environment = var.environment
+  }
+}
+
+####################################################
+# Route Table for Public Subnets
+####################################################
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = {
+    Name        = "public-rt"
+    Environment = var.environment
+  }
+}
+
+resource "aws_route_table_association" "public" {
+  count          = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
+####################################################
+# EKS Cluster + Node Groups
 ####################################################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "18.29.1"
+  version = "17.24.0"
 
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
   vpc_id          = aws_vpc.main.id
-  subnet_ids      = concat(
-    aws_subnet.public[*].id,
-    aws_subnet.private[*].id
-  )
 
-  # Managed Node Groups
-  eks_managed_node_groups = {
+  node_groups = {
     default = {
       desired_capacity = var.node_desired_capacity
       min_capacity     = var.node_min_capacity
       max_capacity     = var.node_max_capacity
       instance_type    = var.instance_type
-      ami_id           = var.ami_id
+      ami_type         = "AL2_x86_64"
+      subnets          = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
     }
   }
 

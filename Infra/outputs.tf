@@ -1,27 +1,48 @@
+####################################################
+# VPC Outputs
+####################################################
 output "vpc_id" {
-  value = aws_vpc.main.id
+  description = "The ID of the main VPC"
+  value       = aws_vpc.main.id
 }
 
-output "public_subnets" {
-  value = aws_subnet.public[*].id
+output "public_subnet_ids" {
+  description = "The IDs of the public subnets"
+  value       = aws_subnet.public[*].id
 }
 
-output "private_subnets" {
-  value = aws_subnet.private[*].id
+output "private_subnet_ids" {
+  description = "The IDs of the private subnets"
+  value       = aws_subnet.private[*].id
 }
 
-output "eks_cluster_name" {
-  value = module.eks.cluster_id
+####################################################
+# Internet Gateway Outputs
+####################################################
+output "internet_gateway_id" {
+  description = "The ID of the Internet Gateway"
+  value       = aws_internet_gateway.main.id
+}
+
+####################################################
+# EKS Cluster Outputs
+####################################################
+output "eks_cluster_id" {
+  description = "The name of the EKS cluster"
+  value       = module.eks.cluster_id
 }
 
 output "eks_cluster_endpoint" {
-  value = module.eks.cluster_endpoint
+  description = "The endpoint for the EKS cluster"
+  value       = module.eks.cluster_endpoint
 }
 
-output "eks_cluster_security_group_id" {
-  value = module.eks.cluster_security_group_id
+output "eks_cluster_certificate_authority_data" {
+  description = "The certificate authority data for the EKS cluster"
+  value       = module.eks.cluster_certificate_authority_data
 }
 
-output "eks_managed_node_group_names" {
-  value = keys(module.eks.eks_managed_node_groups)
+output "eks_node_group_names" {
+  description = "List of EKS node group names"
+  value       = keys(module.eks.node_groups)
 }

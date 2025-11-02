@@ -1,47 +1,80 @@
+####################################################
+# AWS Provider Variables
+####################################################
 variable "aws_region" {
-  default = "us-east-1"
+  description = "AWS region to deploy resources in"
+  type        = string
+  default     = "us-west-2"
 }
 
+####################################################
+# Environment / Naming
+####################################################
+variable "environment" {
+  description = "Deployment environment (e.g., dev, prod)"
+  type        = string
+  default     = "dev"
+}
+
+####################################################
+# VPC Variables
+####################################################
 variable "vpc_cidr" {
-  default = "10.0.0.0/16"
+  description = "CIDR block for the VPC"
+  type        = string
+  default     = "10.0.0.0/16"
 }
 
 variable "public_subnet_count" {
-  default = 2
+  description = "Number of public subnets"
+  type        = number
+  default     = 2
 }
 
 variable "private_subnet_count" {
-  default = 2
+  description = "Number of private subnets"
+  type        = number
+  default     = 2
 }
 
+####################################################
+# EKS Cluster Variables
+####################################################
 variable "cluster_name" {
-  default = "my-eks-cluster"
+  description = "Name of the EKS cluster"
+  type        = string
+  default     = "my-eks-cluster"
 }
 
 variable "cluster_version" {
-  default = "1.29"
+  description = "Kubernetes version for the EKS cluster"
+  type        = string
+  default     = "1.28"
 }
 
-variable "instance_type" {
-  default = "t3.medium"
-}
-
-variable "ami_id" {
-  default = ""  # leave blank for latest Amazon EKS optimized AMI
-}
-
+####################################################
+# EKS Node Group Variables
+####################################################
 variable "node_desired_capacity" {
-  default = 2
+  description = "Desired number of nodes in the EKS node group"
+  type        = number
+  default     = 2
 }
 
 variable "node_min_capacity" {
-  default = 1
+  description = "Minimum number of nodes in the EKS node group"
+  type        = number
+  default     = 1
 }
 
 variable "node_max_capacity" {
-  default = 3
+  description = "Maximum number of nodes in the EKS node group"
+  type        = number
+  default     = 3
 }
 
-variable "environment" {
-  default = "dev"
+variable "instance_type" {
+  description = "EC2 instance type for the EKS nodes"
+  type        = string
+  default     = "t3.medium"
 }

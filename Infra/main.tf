@@ -7,6 +7,7 @@ resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
+
   tags = {
     Name = "main-vpc"
   }
@@ -42,18 +43,19 @@ resource "aws_subnet" "private" {
 
 # --- EKS Cluster ---
 module "eks" {
-  source          = "terraform-aws-modules/eks/aws"
-  version         = "21.8.0"
+  source  = "terraform-aws-modules/eks/aws"
+  version = "21.8.0"
 
-  # Updated cluster arguments
-  name            = "my-eks-cluster"                         # was cluster_name
-  version         = "1.29"                                   # was cluster_version
-  vpc_id          = aws_vpc.main.id
-  subnet_ids      = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)  # was subnets
+  # Cluster settings
+  name       = "my-eks-cluster"
+  version    = "1.29"
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = concat(
+    aws_subnet.public[*].id,
+    aws_subnet.private[*].id
+  )
 
-  manage_aws_auth = true
-
-  # Node groups with variables
+  # Node groups
   node_groups = {
     default = {
       desired_capacity = 2
@@ -63,4 +65,6 @@ module "eks" {
       ami_id           = var.ami_id
     }
   }
+
+  manage_aws_auth = true
 }

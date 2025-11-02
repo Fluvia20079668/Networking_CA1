@@ -13,7 +13,7 @@ terraform {
   backend "s3" {
     bucket         = "my-github-actions-terraform-state"
     key            = "infra/terraform.tfstate"
-    region         = "eu-north-1"              # ✅ match your GitHub Actions AWS_REGION
+    region         = "us-west-2"              # ✅ updated to match your S3 + DynamoDB region
     dynamodb_table = "terraform-locks"
     encrypt        = true
   }

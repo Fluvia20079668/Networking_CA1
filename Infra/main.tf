@@ -2,29 +2,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-variable "aws_region" {
-  type    = string
-  default = "us-west-2"
-}
-
-variable "vpc_cidr" {
-  type    = string
-  default = "10.0.0.0/16"
-}
-
-variable "subnet_count" {
-  type    = number
-  default = 2
-}
-
-variable "instance_type" {
-  type    = string
-  default = "t3.medium"
-}
-
-# -----------------------------
 # Unique suffix
-# -----------------------------
 resource "random_string" "suffix" {
   length  = 6
   upper   = false
@@ -50,7 +28,7 @@ data "aws_availability_zones" "available" {}
 resource "aws_subnet" "public" {
   count                   = var.subnet_count
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 4, count.index) # fixed from 8
+  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 4, count.index) # fixed subnet size
   availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
 
@@ -228,15 +206,4 @@ resource "aws_ecr_repository" "app" {
   encryption_configuration {
     encryption_type = "AES256"
   }
-}
-
-# -----------------------------
-# Outputs
-# -----------------------------
-output "ecr_repository_url" {
-  value = aws_ecr_repository.app.repository_url
-}
-
-output "eks_cluster_name" {
-  value = aws_eks_cluster.eks.name
 }

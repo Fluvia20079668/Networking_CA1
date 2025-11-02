@@ -33,10 +33,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ✅ Terraform Init (non-interactive, safe for CI/CD)
+      # Terraform Init (safe for CI/CD)
       - name: Terraform Init
         working-directory: Infra
-        run: terraform init -lock=false -input=false
+        run: terraform init -input=false
 
       - name: Terraform Plan
         working-directory: Infra
@@ -96,8 +96,7 @@ jobs:
           version: 'v1.30.0'
 
       - name: Configure kubeconfig
-        run: |
-          aws eks update-kubeconfig --name ${{ env.EKS_NAME }} --region ${{ env.AWS_REGION }}
+        run: aws eks update-kubeconfig --name ${{ env.EKS_NAME }} --region ${{ env.AWS_REGION }}
 
       - name: Deploy to EKS
         run: |
@@ -114,6 +113,4 @@ jobs:
           echo "url=http://$URL" >> $GITHUB_OUTPUT
 
       - name: Show live application link
-        run: |
-          echo "✅ Your app is live at:"
-          echo "${{ steps.get-url.outputs.url }}"
+        run: echo "✅ Your app is live at: ${{ steps.get-url.outputs.url }}"

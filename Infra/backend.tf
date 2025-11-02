@@ -12,14 +12,12 @@ terraform {
     }
   }
 
-  use_lockfile = true  # ✅ Top-level only, not in backend
-
   backend "s3" {
-    bucket  = "my-github-actions-terraform-state"  # Your S3 bucket for state
-    key     = "infra/terraform.tfstate"            # Path to state file
-    region  = "us-west-2"                          # S3/DynamoDB region
-    encrypt = true                                 # Enable server-side encryption
-    # Optional: Uncomment for DynamoDB-based remote locking
+    bucket  = "my-github-actions-terraform-state"  # Replace with your S3 bucket
+    key     = "infra/terraform.tfstate"
+    region  = "us-west-2"
+    encrypt = true
+    # Optional: Uncomment for DynamoDB state locking
     # dynamodb_table = "my-terraform-lock-table"
   }
 }

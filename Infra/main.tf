@@ -67,9 +67,8 @@ module "eks" {
     aws_subnet.private[*].id
   )
 
-  manage_aws_auth = true
-
-  node_groups = {
+  # Managed Node Groups
+  eks_managed_node_groups = {
     default = {
       desired_capacity = var.node_desired_capacity
       min_capacity     = var.node_min_capacity

@@ -121,7 +121,7 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
   vpc_id          = aws_vpc.main.id
-  cluster_subnets = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
+  subnet_ids      = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
 
   node_groups = {
     default = {
